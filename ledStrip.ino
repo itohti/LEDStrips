@@ -34,7 +34,7 @@ void snake(int amountOfLEDs) {
       delay(10);
     }
   }
-
+  // sets the trailing leds left over off.
   while(!(isEmpty(previousLEDs))){
     int index = dequeue(previousLEDs);
     leds[index] = CRGB(0, 0, 0);
