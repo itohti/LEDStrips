@@ -28,6 +28,8 @@ int main() {
   FastLED.addLeds<WS2812, 2, GRB>(leds, NUM_LEDS);
 
   char STATE = 0; // 0000 3 bit start bit 2 bit idk 1 bit idk 0 bit idk
+  byte deltaColor = 0;
+  byte amountChanged = 0;
 
   int position = 0;
   int velocity = 130;
@@ -60,6 +62,9 @@ int main() {
         case 4:
           rainbow(50, 5);
           snake(10, setColor);
+          break;
+        case 5:
+          blends(&amountChanged, &deltaColor);
           break;
       }
     }
@@ -110,7 +115,7 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode){
       break;
     case IR_SWITCH_MODES:
       *mode += 1;
-      *mode %= 5; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
+      *mode %= 6; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
   }
 }
 
@@ -133,9 +138,30 @@ void turn_off_lights(){
   }
 }
 
-void blends(){
-  CRGB *colors = malloc(sizeof(CRGB) * 8);
-  
+void blends(byte *amountChanged, byte *deltaColor){
+  CRGB *colors = malloc(sizeof(CRGB) * 9);
+  colors[0] = CRGB::Purple;
+  colors[1] = CRGB::Aqua;
+  colors[2] = CRGB(245, 122, 138);
+  colors[3] = CRGB::Green;
+  colors[4] = CRGB::Blue;
+  colors[5] = CRGB::Red;
+  colors[6] = CRGB::FloralWhite;
+  colors[7] = CRGB::FairyLightNCC;
+  colors[8] = CRGB::Brown;
+
+  for (int i = 0; i < NUM_LEDS; i++){
+    blend(leds[i], colors[*deltaColor], 1);
+  }
+
+  if (*amountChanged == 255){
+    *deltaColor += 1;
+    *deltaColor %= 9;
+  }
+
+  *amountChanged++;
+
+  free(colors);
 }
 
 // this is a simple oscillation.
