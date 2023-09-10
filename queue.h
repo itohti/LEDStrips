@@ -9,6 +9,7 @@ typedef struct Queue{
 // creates the queue.
 Queue *create_queue(int capacity){
   Queue *queue = malloc(sizeof(Queue));
+  queue->count = 0;
   queue->capacity = capacity;
   queue->array = malloc(sizeof(int) * capacity); // initialize queue with capacity.
   return queue;

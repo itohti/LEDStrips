@@ -13,6 +13,8 @@
 #define IR_BLUE_BUTTON 69 // hehe funny number
 #define IR_WHITE_BUTTON 68
 #define IR_SWITCH_MODES 65
+#define IR_ORANGE_BUTTON 84
+#define IR_MAGENTA_BUTTON 30
 
 CRGB leds[NUM_LEDS];
 const byte RECV_PIN = 11;
@@ -55,6 +57,10 @@ int main() {
         case 3:
           rainbow(50, 5);
           break;
+        case 4:
+          rainbow(50, 5);
+          snake(10, setColor);
+          break;
       }
     }
     else{
@@ -96,10 +102,15 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode){
     case IR_WHITE_BUTTON:
       *setColor = CRGB::White;
       break;
+    case IR_ORANGE_BUTTON:
+      *setColor = CRGB::OrangeRed;
+      break;
+    case IR_MAGENTA_BUTTON:
+      *setColor = CRGB::Magenta;
+      break;
     case IR_SWITCH_MODES:
       *mode += 1;
-      *mode %= 4; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
-      Serial.println(*mode);
+      *mode %= 5; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
   }
 }
 
@@ -120,6 +131,11 @@ void turn_off_lights(){
       FastLED.show();
     }
   }
+}
+
+void blends(){
+  CRGB *colors = malloc(sizeof(CRGB) * 8);
+  
 }
 
 // this is a simple oscillation.
@@ -146,7 +162,6 @@ void pulse(int *position, int *velocity, int *acceleration, CRGB color){
 // this gives the led lights a snake like pattern.
 void snake(int amountOfLEDs, CRGB color) {
   Queue *previousLEDs = create_queue(amountOfLEDs);
-  delay(150);
   for (int i = 0; i < NUM_LEDS; i++){
     leds[i] = color;
     if (IrReceiver.isIdle()){
