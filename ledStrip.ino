@@ -2,7 +2,7 @@
 #include <FastLED.h>
 #include <IRremote.h>
 #include "queue.h"
-#define NUM_LEDS 150
+#define NUM_LEDS 300
 
 /* IR remote commands */
 #define IR_POWER_BUTTON 64
@@ -15,6 +15,10 @@
 #define IR_SWITCH_MODES 65
 #define IR_ORANGE_BUTTON 84
 #define IR_MAGENTA_BUTTON 30
+#define IR_INCREMENT_FUNCTION 72
+#define IR_DECREMENT_FUNCTION 76
+#define IR_SET_BPM_MODE 31
+#define IR_SET_BPM 27
 
 CRGB leds[NUM_LEDS];
 const byte RECV_PIN = 11;
@@ -27,43 +31,56 @@ int main() {
   pinMode(13, OUTPUT);
   FastLED.addLeds<WS2812, 2, GRB>(leds, NUM_LEDS);
 
-  char STATE = 0; // 0000 3 bit start bit 2 bit idk 1 bit idk 0 bit idk
-  byte deltaColor = 0;
-  byte amountChanged = 0;
+  char STATE = 0; // 0000 3 bit start bit 2 bit bpm set 1 bit idk 0 bit idk
+  int deltaColor = 0;
+  int amountChanged = 0;
+
+  byte amountSkip = 1;
+  byte amountOfLEDs = 10;
+
+  byte limit = 0;
+
+  uint16_t elapsed_seconds = 0;
+  uint16_t previous_seconds = 0;
+  byte seconds = 0;
+  int bpm = 125;
 
   int position = 0;
   int velocity = 130;
   int acceleration = 1;
   CRGB setColor = CRGB(255, 255, 255);
   byte mode = 0;
-  /* uint16_t sec = seconds16() super useful if you're going to be programming music.  */
   while (1) {
     if (IrReceiver.decode()){
       byte command = IrReceiver.decodedIRData.command;
       Serial.println(command);
-      decode_command(command, &STATE, &setColor, &mode);
+      decode_command(command, &STATE, &setColor, &mode, &amountSkip, &amountOfLEDs, &bpm);
       IrReceiver.resume();
     }
     if (get_bit(STATE, 3)){
       switch(mode){
         case 0:
           FastLED.clearData();
-          dots(1, setColor);
+          dots(amountSkip, setColor);
           break;
         case 1:
-          snake(10, setColor);
+          FastLED.clearData();
+          dots_with_bpm(bpm, &amountSkip, setColor, &limit);
           break;
         case 2:
-          pulse(&position, &velocity, &acceleration, setColor);
+          snake(amountOfLEDs, setColor);
           break;
         case 3:
-          rainbow(50, 5);
+          pulse(&position, &velocity, &acceleration, setColor);
           break;
         case 4:
           rainbow(50, 5);
-          snake(10, setColor);
           break;
         case 5:
+          rainbow(50, 5);
+          snake(amountOfLEDs, setColor);
+          break;
+        case 6:
           blends(&amountChanged, &deltaColor);
           break;
       }
@@ -74,10 +91,10 @@ int main() {
   }
 }
 
-void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode){
+void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode, byte *amountSkip, byte *amountOfLEDs, int *bpm){
   switch(command){
     case IR_POWER_BUTTON:
-      toggle_start(STATE);
+      toggle_bit(STATE, 3);
       break;
     case IR_BRIGHTNESS_UP:
       if ((FastLED.getBrightness() + 255/10) < 255){
@@ -116,6 +133,44 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode){
     case IR_SWITCH_MODES:
       *mode += 1;
       *mode %= 6; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
+    case IR_INCREMENT_FUNCTION:
+      if (*mode == 0){
+        if (*amountSkip > 0 && *amountSkip < 26){
+          *amountSkip += 1;
+        }
+      }
+      else if (*mode == 1){
+        if (*bpm < 240){
+          *bpm += 10;
+        }
+      }
+      else if (*mode == 2 || *mode == 5){
+        if (*amountOfLEDs < 40){
+          *amountOfLEDs += 10;
+        }
+      }
+      break;
+    case IR_DECREMENT_FUNCTION:
+      if (*mode == 0){
+        if (*amountSkip > 0 && *amountSkip < 26){
+          *amountSkip -= 1;
+        }
+      }
+      else if (*mode == 1){
+        if (*bpm > 30){
+          *bpm -= 10;
+        }
+      }
+      else if (*mode == 2 || *mode == 5){
+        if (!(*amountOfLEDs - 10 > 50)){
+          *amountOfLEDs -= 10;
+        }
+      }
+      break;
+    case IR_SET_BPM_MODE:
+      add_bit(STATE, 2);
+      remove_bit(STATE, 3);
+      break;
   }
 }
 
@@ -124,13 +179,23 @@ byte get_bit(char STATE, byte index){
   return STATE & mask;
 }
 
-void toggle_start(char *STATE){
-  char mask = 1 << 3;
+void toggle_bit(char *STATE, byte index){
+  char mask = 1 << index;
   *STATE ^= mask;
 }
 
+void add_bit(char *STATE, byte index){
+  char mask = 1 << index;
+  *STATE |= mask;
+}
+
+void remove_bit(char *STATE, byte index){
+  char mask = 1 << index;
+  *STATE &= ~mask;
+}
+
 void turn_off_lights(){
-  for (int i = 0; i < 150; i++){
+  for (int i = 0; i < NUM_LEDS; i++){
     leds[i] = CRGB::Black;
     if (IrReceiver.isIdle()){
       FastLED.show();
@@ -138,7 +203,21 @@ void turn_off_lights(){
   }
 }
 
-void blends(byte *amountChanged, byte *deltaColor){
+void dots_with_bpm(int bpm, byte *amountSkip, CRGB color, byte *limit){
+  uint8_t beat = beatsin8(bpm, 200, 256);
+  if (beat == 255 && *limit == 0){
+    *amountSkip += 1;
+    *amountSkip %= 20;
+    *limit += 1;
+  }
+
+  if (beat == 200){
+    *limit = 0;
+  }
+  dots(*amountSkip, color);
+}
+
+void blends(int *amountChanged, int *deltaColor){
   CRGB *colors = malloc(sizeof(CRGB) * 9);
   colors[0] = CRGB::Purple;
   colors[1] = CRGB::Aqua;
@@ -151,16 +230,19 @@ void blends(byte *amountChanged, byte *deltaColor){
   colors[8] = CRGB::Brown;
 
   for (int i = 0; i < NUM_LEDS; i++){
-    blend(leds[i], colors[*deltaColor], 1);
+    leds[i] = blend(leds[i], colors[*deltaColor], 1);
+  }
+  if (IrReceiver.isIdle()){
+    FastLED.show();
   }
 
   if (*amountChanged == 255){
     *deltaColor += 1;
     *deltaColor %= 9;
+    *amountChanged = 0;
   }
 
-  *amountChanged++;
-
+  *amountChanged += 1;
   free(colors);
 }
 
@@ -194,14 +276,12 @@ void snake(int amountOfLEDs, CRGB color) {
       FastLED.show();
     }
     enqueue(previousLEDs, i);
-    delay(10);
     if (previousLEDs->count == previousLEDs->capacity){
       int index = dequeue(previousLEDs);
       leds[index] = CRGB(0, 0, 0);
       if (IrReceiver.isIdle()){
         FastLED.show();
       }
-      delay(10);
     }
   }
   // sets the trailing leds left over off.
@@ -211,7 +291,6 @@ void snake(int amountOfLEDs, CRGB color) {
     if (IrReceiver.isIdle()){
       FastLED.show();
     }
-    delay(10);
   }
   // when the function ends free the malloced variables and wait for while(1) loop to call on another function or the same one.
   free(previousLEDs->array);
