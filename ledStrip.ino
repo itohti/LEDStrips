@@ -15,10 +15,12 @@
 #define IR_SWITCH_MODES 65
 #define IR_ORANGE_BUTTON 84
 #define IR_MAGENTA_BUTTON 30
+#define IR_BROWN_BUTTON 12
+#define IR_HOTPINK_BUTTON 13
 #define IR_INCREMENT_FUNCTION 72
 #define IR_DECREMENT_FUNCTION 76
-#define IR_SET_BPM_MODE 31
-#define IR_SET_BPM 27
+#define IR_SET_BPM_MODE 31 // this button will be used once I turn this Arduino into an IoT and access spotify API.
+// create a button for brown because it looks really nice LOL 
 
 CRGB leds[NUM_LEDS];
 const byte RECV_PIN = 11;
@@ -31,7 +33,7 @@ int main() {
   pinMode(13, OUTPUT);
   FastLED.addLeds<WS2812, 2, GRB>(leds, NUM_LEDS);
 
-  char STATE = 0; // 0000 3 bit start bit 2 bit bpm set 1 bit idk 0 bit idk
+  char STATE = 0; // 0000 3 bit start bit 2 bit bpm set 1 bit off bit 0 bit idk
   int deltaColor = 0;
   int amountChanged = 0;
 
@@ -58,6 +60,7 @@ int main() {
       IrReceiver.resume();
     }
     if (get_bit(STATE, 3)){
+      remove_bit(&STATE, 1);
       switch(mode){
         case 0:
           FastLED.clearData();
@@ -65,7 +68,7 @@ int main() {
           break;
         case 1:
           FastLED.clearData();
-          dots_with_bpm(bpm, &amountSkip, setColor, &limit);
+          dancing_dots(bpm, &amountSkip, setColor, &limit);
           break;
         case 2:
           snake(amountOfLEDs, setColor);
@@ -86,7 +89,9 @@ int main() {
       }
     }
     else{
-      turn_off_lights();
+      if (!(get_bit(STATE, 1))){
+        turn_off_lights(&STATE);
+      }
     }
   }
 }
@@ -130,12 +135,18 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode, byte 
     case IR_MAGENTA_BUTTON:
       *setColor = CRGB::Magenta;
       break;
+    case IR_BROWN_BUTTON:
+      *setColor = CRGB::Brown;
+      break;
+    case IR_HOTPINK_BUTTON:
+      *setColor = CRGB::HotPink;
+      break;
     case IR_SWITCH_MODES:
       *mode += 1;
-      *mode %= 6; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
+      *mode %= 7; // CHANGE THE MOD VALUE WHEN ADDING MORE MODES.
     case IR_INCREMENT_FUNCTION:
       if (*mode == 0){
-        if (*amountSkip > 0 && *amountSkip < 26){
+        if (*amountSkip >= 0 && *amountSkip < 26){
           *amountSkip += 1;
         }
       }
@@ -145,7 +156,7 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode, byte 
         }
       }
       else if (*mode == 2 || *mode == 5){
-        if (*amountOfLEDs < 40){
+        if (*amountOfLEDs < 30){
           *amountOfLEDs += 10;
         }
       }
@@ -162,14 +173,11 @@ void decode_command(byte command, char *STATE, CRGB *setColor, byte *mode, byte 
         }
       }
       else if (*mode == 2 || *mode == 5){
-        if (!(*amountOfLEDs - 10 > 50)){
+        if (!(*amountOfLEDs - 10 > 20 || *amountOfLEDs - 10 == 0)){
           *amountOfLEDs -= 10;
+          Serial.println(*amountOfLEDs);
         }
       }
-      break;
-    case IR_SET_BPM_MODE:
-      add_bit(STATE, 2);
-      remove_bit(STATE, 3);
       break;
   }
 }
@@ -194,16 +202,17 @@ void remove_bit(char *STATE, byte index){
   *STATE &= ~mask;
 }
 
-void turn_off_lights(){
+void turn_off_lights(char *STATE){
   for (int i = 0; i < NUM_LEDS; i++){
     leds[i] = CRGB::Black;
     if (IrReceiver.isIdle()){
       FastLED.show();
     }
   }
+  add_bit(STATE, 1);
 }
 
-void dots_with_bpm(int bpm, byte *amountSkip, CRGB color, byte *limit){
+void dancing_dots(int bpm, byte *amountSkip, CRGB color, byte *limit){
   uint8_t beat = beatsin8(bpm, 200, 256);
   if (beat == 255 && *limit == 0){
     *amountSkip += 1;
@@ -219,13 +228,13 @@ void dots_with_bpm(int bpm, byte *amountSkip, CRGB color, byte *limit){
 
 void blends(int *amountChanged, int *deltaColor){
   CRGB *colors = malloc(sizeof(CRGB) * 9);
-  colors[0] = CRGB::Purple;
+  colors[0] = CRGB::Blue;
   colors[1] = CRGB::Aqua;
   colors[2] = CRGB(245, 122, 138);
-  colors[3] = CRGB::Green;
-  colors[4] = CRGB::Blue;
-  colors[5] = CRGB::Red;
-  colors[6] = CRGB::FloralWhite;
+  colors[3] = CRGB::FloralWhite;
+  colors[4] = CRGB::HotPink;
+  colors[5] = CRGB::Crimson;
+  colors[6] = CRGB::Magenta;
   colors[7] = CRGB::FairyLightNCC;
   colors[8] = CRGB::Brown;
 
